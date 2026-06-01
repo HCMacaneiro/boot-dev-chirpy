@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync/atomic"
 )
 
@@ -83,14 +84,28 @@ func handleChirp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	newBody := censorBadWords(params.Body)
+
 	type payload struct {
-		Valid bool `json:"valid"`
+		Body string `json:"cleaned_body"`
 	}
 
-	respBody := payload{Valid: true}
+	respBody := payload{Body: newBody}
 
 	respondWithJSON(w, 200, respBody)
 
+}
+
+func censorBadWords(msg string) string {
+	words := strings.Split(msg, " ")
+	cleanedWords := []string{}
+	for _, word := range words {
+		if strings.ToLower(word) == "kerfuffle" || strings.ToLower(word) == "sharbert" || strings.ToLower(word) == "fornax" {
+			word = "****"
+		}
+		cleanedWords = append(cleanedWords, word)
+	}
+	return strings.Join(cleanedWords, " ")
 }
 
 func main() {
