@@ -1,18 +1,32 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync/atomic"
+	"time"
 
+	"github.com/HCMacaneiro/boot-dev-chirpy/internal/database"
+	"github.com/google/uuid"
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
+type User struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
+}
+
 type apiConfig struct {
-	fileserverHits atomic.Int32
+	fileserverHits  atomic.Int32
+	databaseQueries *database.Queries
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -110,10 +124,42 @@ func censorBadWords(msg string) string {
 	return strings.Join(cleanedWords, " ")
 }
 
+func (cfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, 500, "Something went wrong")
+		return
+	}
+	newUser, err := cfg.databaseQueries.CreateUser(r.Context(), params.Email)
+	if err != nil {
+		respondWithError(w, 500, "Something went wrong")
+		return
+	}
+
+	respVal := User(newUser)
+
+	respondWithJSON(w, 201, respVal)
+
+}
+
 func main() {
+	godotenv.Load(".env")
+	dbURL := os.Getenv("DB_URL")
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Fatal("Something went wrong")
+	}
+
 	const port = "8080"
 	const filePathRoot = "."
 	api := &apiConfig{}
+	api.databaseQueries = database.New(db)
 
 	mux := http.NewServeMux()
 	mux.Handle("/app/", http.StripPrefix("/app/", api.middlewareMetricsInc(http.FileServer(http.Dir(".")))))
@@ -130,6 +176,7 @@ func main() {
 	mux.HandleFunc("GET /admin/metrics", api.countNumOfReqs)
 	mux.HandleFunc("POST /admin/reset", api.resetMetrics)
 	mux.HandleFunc("POST /api/validate_chirp", handleChirp)
+	mux.HandleFunc("POST /api/users", api.handleCreateUser)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
