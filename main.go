@@ -53,7 +53,17 @@ func (cfg *apiConfig) countNumOfReqs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) resetMetrics(w http.ResponseWriter, r *http.Request) {
+	godotenv.Load(".env")
+	dbPlatform := os.Getenv("PLATFORM")
+	if dbPlatform != "dev" {
+		respondWithError(w, 403, "Forbidden")
+		return
+	}
 	cfg.fileserverHits.Swap(0)
+	err := cfg.databaseQueries.DeleteAllUsers(r.Context())
+	if err != nil {
+		respondWithError(w, 500, "Something went wrong")
+	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
