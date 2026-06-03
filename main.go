@@ -29,6 +29,14 @@ type apiConfig struct {
 	databaseQueries *database.Queries
 }
 
+type Chirp struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserID    uuid.UUID `json:"user_id"`
+}
+
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cfg.fileserverHits.Add(1)
@@ -115,12 +123,19 @@ func (cfg *apiConfig) handleChirp(w http.ResponseWriter, r *http.Request) {
 
 	type payload struct {
 		Body   string    `json:"body"`
-		UserId uuid.UUID `json:"user_id"`
+		UserID uuid.UUID `json:"user_id"`
 	}
 
-	respBody := payload{Body: newBody, UserId: params.UserId}
+	resp := payload{Body: newBody, UserID: params.UserId}
 
-	respondWithJSON(w, 200, respBody)
+	chirp, err := cfg.databaseQueries.AddChirp(r.Context(), database.AddChirpParams{
+		Body:   resp.Body,
+		UserID: resp.UserID,
+	})
+
+	formattedChirp := Chirp(chirp)
+
+	respondWithJSON(w, 201, formattedChirp)
 
 }
 

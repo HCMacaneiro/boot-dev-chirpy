@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const addChirp = `-- name: AddChirp :many
+const addChirp = `-- name: AddChirp :one
 INSERT INTO chirps (id, created_at, updated_at, body, user_id)
 VALUES (
     gen_random_uuid(),
@@ -25,34 +25,18 @@ RETURNING id, created_at, updated_at, body, user_id
 
 type AddChirpParams struct {
 	Body   string
-	UserID uuid.NullUUID
+	UserID uuid.UUID
 }
 
-func (q *Queries) AddChirp(ctx context.Context, arg AddChirpParams) ([]Chirp, error) {
-	rows, err := q.db.QueryContext(ctx, addChirp, arg.Body, arg.UserID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Chirp
-	for rows.Next() {
-		var i Chirp
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Body,
-			&i.UserID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) AddChirp(ctx context.Context, arg AddChirpParams) (Chirp, error) {
+	row := q.db.QueryRowContext(ctx, addChirp, arg.Body, arg.UserID)
+	var i Chirp
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Body,
+		&i.UserID,
+	)
+	return i, err
 }
