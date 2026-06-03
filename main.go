@@ -93,9 +93,10 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 
 }
 
-func handleChirp(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handleChirp(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Body string `json:"body"`
+		Body   string    `json:"body"`
+		UserId uuid.UUID `json:"user_id"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -113,10 +114,11 @@ func handleChirp(w http.ResponseWriter, r *http.Request) {
 	newBody := censorBadWords(params.Body)
 
 	type payload struct {
-		Body string `json:"cleaned_body"`
+		Body   string    `json:"body"`
+		UserId uuid.UUID `json:"user_id"`
 	}
 
-	respBody := payload{Body: newBody}
+	respBody := payload{Body: newBody, UserId: params.UserId}
 
 	respondWithJSON(w, 200, respBody)
 
@@ -185,7 +187,7 @@ func main() {
 
 	mux.HandleFunc("GET /admin/metrics", api.countNumOfReqs)
 	mux.HandleFunc("POST /admin/reset", api.resetMetrics)
-	mux.HandleFunc("POST /api/validate_chirp", handleChirp)
+	mux.HandleFunc("POST /api/chirps", api.handleChirp)
 	mux.HandleFunc("POST /api/users", api.handleCreateUser)
 
 	srv := &http.Server{
