@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/HCMacaneiro/boot-dev-chirpy/internal/auth"
 	"github.com/HCMacaneiro/boot-dev-chirpy/internal/database"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
@@ -153,7 +154,8 @@ func censorBadWords(msg string) string {
 
 func (cfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email string `json:"email"`
+		Email  string `json:"email"`
+		Passwd string `json:"password"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -163,7 +165,16 @@ func (cfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 500, "Something went wrong")
 		return
 	}
-	newUser, err := cfg.databaseQueries.CreateUser(r.Context(), params.Email)
+	hashedPass, err := auth.HashPassword(params.Passwd)
+	if err != nil {
+		respondWithError(w, 500, "Something went wrong")
+		return
+	}
+	params.Passwd = hashedPass
+	newUser, err := cfg.databaseQueries.CreateUser(r.Context(), database.CreateUserParams{
+		Email:          params.Email,
+		HashedPassword: params.Passwd,
+	})
 	if err != nil {
 		respondWithError(w, 500, "Something went wrong")
 		return
