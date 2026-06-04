@@ -219,6 +219,44 @@ func (cfg *apiConfig) handleGetChirp(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	params := parameters{}
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, 500, "Something went wrong")
+		return
+	}
+	usr, err := cfg.databaseQueries.GetUser(r.Context(), params.Email)
+	if err != nil {
+		respondWithError(w, 401, "Incorrect email or password")
+		return
+	}
+	match, err := auth.CheckPasswordHash(params.Password, usr.HashedPassword)
+	if err != nil {
+		respondWithError(w, 500, "Something went wrong")
+		return
+	}
+	if !match {
+		respondWithError(w, 401, "Incorrect email or password")
+		return
+	}
+	respJSON := User{
+		ID:        usr.ID,
+		CreatedAt: usr.CreatedAt,
+		UpdatedAt: usr.UpdatedAt,
+		Email:     usr.Email,
+	}
+
+	respondWithJSON(w, 200, respJSON)
+
+}
+
 func main() {
 	godotenv.Load(".env")
 	dbURL := os.Getenv("DB_URL")
@@ -250,6 +288,7 @@ func main() {
 	mux.HandleFunc("POST /api/users", api.handleCreateUser)
 	mux.HandleFunc("GET /api/chirps", api.handleGetAllChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", api.handleGetChirp)
+	mux.HandleFunc("POST /api/login", api.handleLogin)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
