@@ -175,6 +175,39 @@ func (cfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func (cfg *apiConfig) handleGetAllChirps(w http.ResponseWriter, r *http.Request) {
+	chirps, err := cfg.databaseQueries.GetAllChirps(r.Context())
+	if err != nil {
+		respondWithError(w, 500, "Something went wrong")
+		return
+	}
+	jsonChirps := []Chirp{}
+	for _, chirp := range chirps {
+		jsonChirps = append(jsonChirps, Chirp(chirp))
+	}
+
+	respondWithJSON(w, 200, jsonChirps)
+
+}
+
+func (cfg *apiConfig) handleGetChirp(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("chirpID")
+	chirpID, err := uuid.Parse(idStr)
+	if err != nil {
+		respondWithError(w, 500, "Something went wrong")
+		return
+	}
+	chirp, err := cfg.databaseQueries.GetChirp(r.Context(), chirpID)
+	if err != nil {
+		respondWithError(w, 404, "Not found")
+		return
+	}
+
+	jsonChirp := Chirp(chirp)
+	respondWithJSON(w, 200, jsonChirp)
+
+}
+
 func main() {
 	godotenv.Load(".env")
 	dbURL := os.Getenv("DB_URL")
@@ -204,6 +237,8 @@ func main() {
 	mux.HandleFunc("POST /admin/reset", api.resetMetrics)
 	mux.HandleFunc("POST /api/chirps", api.handleChirp)
 	mux.HandleFunc("POST /api/users", api.handleCreateUser)
+	mux.HandleFunc("GET /api/chirps", api.handleGetAllChirps)
+	mux.HandleFunc("GET /api/chirps/{chirpID}", api.handleGetChirp)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
